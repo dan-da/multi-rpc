@@ -1,0 +1,31 @@
+[package]
+name = "example-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "example_server_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "example_server_bin"
+path = "src/main.rs"
+
+[dependencies]
+multi-rpc = { path = "../../multi-rpc", features = ["tarpc", "rest-axum", "jsonrpsee"] }
+tokio = { workspace = true }
+tarpc = { workspace = true }
+futures = { workspace = true }
+axum = { workspace = true }
+jsonrpsee = { workspace = true }
+trait-variant = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Passthrough features required by the example clients that depend on this crate as a library.
+# This allows them to enable specific protocol features on the core `multi-rpc` dependency.
+[features]
+tarpc = ["multi-rpc/tarpc"]
+rest-axum = ["multi-rpc/rest-axum"]
+jsonrpsee = ["multi-rpc/jsonrpsee"]

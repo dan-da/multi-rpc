@@ -1,0 +1,12 @@
+[package]
+name = "example-client-tarpc"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+example-server = { path = "../server", features = ["tarpc"] }
+
+tokio = { workspace = true }
+tarpc = { workspace = true }
+anyhow.workspace = true

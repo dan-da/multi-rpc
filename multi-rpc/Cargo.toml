@@ -1,0 +1,26 @@
+[package]
+name = "multi-rpc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Local workspace crates do not use the workspace.dependencies table
+multi-rpc-macros = { version = "0.1.0", path = "../multi-rpc-macros", default-features = false }
+
+# Inherited dependencies
+futures = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+trait-variant = { workspace = true }
+
+# Optional Protocol Dependencies (still need to be marked optional)
+tarpc = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+jsonrpsee = { workspace = true, optional = true }
+
+[features]
+default = []
+tarpc = ["dep:tarpc", "multi-rpc-macros/tarpc"]
+rest-axum = ["dep:axum", "multi-rpc-macros/rest-axum"]
+jsonrpsee = ["dep:jsonrpsee", "multi-rpc-macros/jsonrpsee"]

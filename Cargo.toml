@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+    "multi-rpc",
+    "multi-rpc-macros",
+    "examples/server",
+    "examples/client_rest",
+    "examples/client_tarpc",
+    "examples/client_jsonrpc",
+]
+
+# Set the default to run the server
+default-members = ["examples/server"]
+
+# Define all workspace dependencies in one place
+[workspace.dependencies]
+# Protocol Crates
+tarpc = { version = "0.37.0", features = ["full"] }
+axum = "0.7.9"
+jsonrpsee = { version = "0.26.0", features = ["server", "macros"] }
+
+# Async & Core Crates
+tokio = { version = "1.47.1", features = ["full"] }
+futures = "0.3.31"
+thiserror = "1.0.69"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+
+# Macro Helper Crates
+syn = { version = "2.0.106", features = ["full"] }
+quote = "1.0.41"
+proc-macro2 = "1.0.101"
+
+# Other
+trait-variant = "0.1.2"
+anyhow = "1.0.100"
+reqwest = { version = "0.12.23", features = ["json"] }
+
