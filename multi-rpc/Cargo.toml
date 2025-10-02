@@ -2,6 +2,13 @@
 name = "multi-rpc"
 version = "0.1.0"
 edition = "2021"
+description = "Define a Rust service trait once and serve it simultaneously over multiple RPC protocols like Tarpc, REST/Axum, and JSON-RPC."
+license = "Apache-2.0"
+repository = "https://github.com/dan-da/multi-rpc"
+homepage = "https://github.com/dan-da/multi-rpc"
+readme = "README.md"
+keywords = ["rpc", "axum", "tarpc", "json-rpc", "macros"]
+categories = ["network-programming", "web-programming"]
 
 [dependencies]
 # Local workspace crates do not use the workspace.dependencies table

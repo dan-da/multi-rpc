@@ -2,6 +2,12 @@
 name = "multi-rpc-macros"
 version = "0.1.0"
 edition = "2021"
+description = "Internal procedural macros for the multi-rpc crate. Please use the main multi-rpc crate as a dependency."
+license = "Apache-2.0"
+repository = "https://github.com/dan-da/multi-rpc"
+homepage = "https://github.com/dan-da/multi-rpc"
+keywords = ["rpc", "macros", "internal"]
+categories = ["development-tools::procedural-macro-helpers"]
 
 [lib]
 proc-macro = true
