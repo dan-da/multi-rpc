@@ -1,13 +1,22 @@
 // multi-rpc-macros/src/protocols/rest_axum.rs
 
+use proc_macro2::Ident;
+use proc_macro2::TokenStream;
+use quote::format_ident;
+use quote::quote;
+use syn::parse::Parse;
+use syn::parse::ParseStream;
+use syn::punctuated::Punctuated;
+use syn::FnArg;
+use syn::ImplItem;
+use syn::ItemImpl;
+use syn::ItemTrait;
+use syn::LitStr;
+use syn::Pat;
+use syn::Result;
+use syn::Token;
+
 use super::Protocol;
-use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
-use syn::{
-    parse::{Parse, ParseStream},
-    punctuated::Punctuated,
-    FnArg, ImplItem, ItemImpl, ItemTrait, LitStr, Pat, Result, Token,
-};
 
 // Represents a mapping from a public API name to a private Rust variable name.
 // Can be either a simple identifier `limit` (shorthand for `limit = limit`)
@@ -80,7 +89,8 @@ impl Parse for RestAttribute {
         }
 
         Ok(RestAttribute {
-            method: method.ok_or_else(|| syn::Error::new(input.span(), "Missing `method` argument"))?,
+            method: method
+                .ok_or_else(|| syn::Error::new(input.span(), "Missing `method` argument"))?,
             path: path.ok_or_else(|| syn::Error::new(input.span(), "Missing `path` argument"))?,
             query_params,
             body_params,
@@ -110,7 +120,8 @@ impl Protocol for RestAxum {
                         Err(_) => continue,
                     };
 
-                    let http_method = format_ident!("{}", rest_attr.method.to_string().to_lowercase());
+                    let http_method =
+                        format_ident!("{}", rest_attr.method.to_string().to_lowercase());
                     let path = &rest_attr.path;
                     let method_ident = &method.sig.ident;
 
@@ -147,13 +158,16 @@ impl Protocol for RestAxum {
 
                     // Query Parameters
                     if !rest_attr.query_params.is_empty() {
-                        let query_wrapper_ident = format_ident!("{}Query", method_ident.to_string());
+                        let query_wrapper_ident =
+                            format_ident!("{}Query", method_ident.to_string());
                         let mut query_wrapper_fields = vec![];
                         for q_param in &rest_attr.query_params {
                             let pub_name_str = q_param.public_name.to_string();
                             let priv_name = &q_param.private_name;
                             let arg_ty = all_fn_args.get(priv_name).unwrap();
-                            query_wrapper_fields.push(quote! { #[serde(rename = #pub_name_str)] pub #priv_name: #arg_ty });
+                            query_wrapper_fields.push(
+                                quote! { #[serde(rename = #pub_name_str)] pub #priv_name: #arg_ty },
+                            );
                             call_args.push(quote! { query_params.#priv_name });
                         }
                         handler_args.push(quote! { axum::extract::Query(query_params): axum::extract::Query<#query_wrapper_ident> });
@@ -173,7 +187,9 @@ impl Protocol for RestAxum {
                             let pub_name_str = b_param.public_name.to_string();
                             let priv_name = &b_param.private_name;
                             let arg_ty = all_fn_args.get(priv_name).unwrap();
-                            body_wrapper_fields.push(quote! { #[serde(rename = #pub_name_str)] pub #priv_name: #arg_ty });
+                            body_wrapper_fields.push(
+                                quote! { #[serde(rename = #pub_name_str)] pub #priv_name: #arg_ty },
+                            );
                             call_args.push(quote! { body_params.#priv_name });
                         }
                         handler_args.push(quote! { axum::extract::Json(body_params): axum::extract::Json<#body_wrapper_ident> });

@@ -1,7 +1,7 @@
 // multi-rpc/examples/server/src/lib.rs
 
-use multi_rpc::*;
 use multi_rpc::error::RpcError;
+use multi_rpc::*;
 
 // Demonstrates that we can return a custom type.
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -26,7 +26,9 @@ impl Greeter for MyGreeter {
     async fn greet(&self, name: String) -> MyResult {
         println!("[greet] Received call for name: {}", name);
         if name.is_empty() {
-            return MyResult(Err(RpcError::InternalError("Name cannot be empty".to_string())));
+            return MyResult(Err(RpcError::InternalError(
+                "Name cannot be empty".to_string(),
+            )));
         }
         MyResult(Ok(format!("Hello, {}! My name is {}.", name, self.0)))
     }

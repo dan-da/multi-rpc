@@ -1,15 +1,20 @@
-use super::Protocol;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
-use syn::{
-    punctuated::Punctuated, FnArg, ImplItem, ItemImpl, ItemTrait, Pat, Token,
-    TraitItem,
-};
+use quote::format_ident;
+use quote::quote;
+use syn::punctuated::Punctuated;
+use syn::FnArg;
+use syn::ImplItem;
+use syn::ItemImpl;
+use syn::ItemTrait;
+use syn::Pat;
+use syn::Token;
+use syn::TraitItem;
+
+use super::Protocol;
 
 pub struct Tarpc;
 
 impl Protocol for Tarpc {
-
     fn transform_trait(&self, item_trait: &ItemTrait) -> TokenStream {
         let tarpc_trait_ident = format_ident!("{}Tarpc", item_trait.ident);
 
@@ -18,7 +23,9 @@ impl Protocol for Tarpc {
                 let mut sig = method.sig.clone();
                 sig.inputs = sig.inputs.into_iter().skip(1).collect();
                 Some(quote! { #sig; })
-            } else { None }
+            } else {
+                None
+            }
         });
 
         quote! {
@@ -32,8 +39,17 @@ impl Protocol for Tarpc {
 
     fn transform_impl(&self, item_impl: &ItemImpl) -> TokenStream {
         let self_ty = &item_impl.self_ty;
-        let trait_ident = &item_impl.trait_.as_ref().unwrap().1.segments.last().unwrap().ident;
-        let generated_mod_ident = format_ident!("{}_generated", trait_ident.to_string().to_lowercase());
+        let trait_ident = &item_impl
+            .trait_
+            .as_ref()
+            .unwrap()
+            .1
+            .segments
+            .last()
+            .unwrap()
+            .ident;
+        let generated_mod_ident =
+            format_ident!("{}_generated", trait_ident.to_string().to_lowercase());
         let tarpc_trait_ident = format_ident!("{}Tarpc", trait_ident);
 
         let request_ident = format_ident!("{}Request", tarpc_trait_ident);

@@ -1,7 +1,8 @@
-use crate::runner::ServerRunner;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+
+use crate::runner::ServerRunner;
 
 /// A type alias for a future that can be spawned as a server task.
 pub type ServerTask = Pin<Box<dyn Future<Output = ()> + Send>>;

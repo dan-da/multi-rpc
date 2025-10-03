@@ -1,12 +1,11 @@
 use example_server_lib::greeter_generated::GreeterTarpcClient; // For tarpc client
 use tarpc::client;
-use tarpc::tokio_serde::formats::Json;
 use tarpc::context;
+use tarpc::tokio_serde::formats::Json;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let transport = tarpc::serde_transport::tcp::connect("127.0.0.1:9001", Json::default)
-        .await?;
+    let transport = tarpc::serde_transport::tcp::connect("127.0.0.1:9001", Json::default).await?;
 
     let client = GreeterTarpcClient::new(client::Config::default(), transport).spawn();
     let response = client
@@ -14,7 +13,9 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     println!("✅ Tarpc Response: {:?}", response);
 
-    let settings_response = client.update_settings(context::current(), 101, 85, "dark".to_string()).await?;
+    let settings_response = client
+        .update_settings(context::current(), 101, 85, "dark".to_string())
+        .await?;
     println!("✅ Tarpc Settings Response: {:?}", settings_response);
 
     Ok(())

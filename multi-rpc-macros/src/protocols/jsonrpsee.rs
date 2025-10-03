@@ -1,39 +1,41 @@
-use super::Protocol;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
-use syn::{
-    FnArg, ImplItem, ItemImpl, ItemTrait, Pat, ReturnType, TraitItem,
-    Type,
-};
+use quote::format_ident;
+use quote::quote;
+use syn::FnArg;
+use syn::ImplItem;
+use syn::ItemImpl;
+use syn::ItemTrait;
+use syn::Pat;
+use syn::ReturnType;
+use syn::TraitItem;
+use syn::Type;
+
+use super::Protocol;
 
 pub struct JsonRpSee;
 
 impl Protocol for JsonRpSee {
-
     fn transform_trait(&self, item_trait: &ItemTrait) -> TokenStream {
         let rpc_trait_ident = format_ident!("{}Rpc", item_trait.ident);
 
-        let methods = item_trait
-            .items
-            .iter()
-            .filter_map(|item| {
-                if let TraitItem::Fn(method) = item {
-                    let mut sig = method.sig.clone();
-                    let method_name = sig.ident.to_string();
+        let methods = item_trait.items.iter().filter_map(|item| {
+            if let TraitItem::Fn(method) = item {
+                let mut sig = method.sig.clone();
+                let method_name = sig.ident.to_string();
 
-                    // **Strategy: All methods in the adapted trait will return the same universal type.**
-                    sig.output = syn::parse_quote! {
-                        -> Result<serde_json::Value, jsonrpsee::types::error::ErrorObject<'static>>
-                    };
+                // **Strategy: All methods in the adapted trait will return the same universal type.**
+                sig.output = syn::parse_quote! {
+                    -> Result<serde_json::Value, jsonrpsee::types::error::ErrorObject<'static>>
+                };
 
-                    Some(quote! {
-                        #[method(name = #method_name)]
-                        #sig;
-                    })
-                } else {
-                    None
-                }
-            });
+                Some(quote! {
+                    #[method(name = #method_name)]
+                    #sig;
+                })
+            } else {
+                None
+            }
+        });
 
         quote! {
             use jsonrpsee::proc_macros::rpc;
@@ -48,8 +50,17 @@ impl Protocol for JsonRpSee {
 
     fn transform_impl(&self, item_impl: &ItemImpl) -> TokenStream {
         let self_ty = &item_impl.self_ty;
-        let trait_ident = &item_impl.trait_.as_ref().unwrap().1.segments.last().unwrap().ident;
-        let generated_mod_ident = format_ident!("{}_generated", trait_ident.to_string().to_lowercase());
+        let trait_ident = &item_impl
+            .trait_
+            .as_ref()
+            .unwrap()
+            .1
+            .segments
+            .last()
+            .unwrap()
+            .ident;
+        let generated_mod_ident =
+            format_ident!("{}_generated", trait_ident.to_string().to_lowercase());
         let rpc_trait_ident = format_ident!("{}RpcServer", trait_ident);
 
         let method_impls = item_impl.items.iter().filter_map(|item| {

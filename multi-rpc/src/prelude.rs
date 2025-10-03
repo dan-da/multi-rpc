@@ -2,5 +2,7 @@
 
 pub use crate::builder::ServerBuilder;
 pub use crate::error::RpcError;
+pub use crate::multi_rpc_impl;
+pub use crate::multi_rpc_trait;
+pub use crate::rest;
 pub use crate::runner::ServerRunner;
-pub use crate::{multi_rpc_impl, multi_rpc_trait, rest};
