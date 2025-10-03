@@ -13,7 +13,7 @@ trait Greeter {
     async fn greet(&self, name: String) -> MyResult;
 
     /// A more complex method that mixes a path parameter and a multi-field JSON body.
-    async fn update_settings(&self, user_id: u64, brightness: u32, theme: String) -> MyResult;
+    async fn update_settings(&mut self, user_id: u64, brightness: u32, theme: String) -> MyResult;
 }
 
 #[derive(Clone)]
@@ -36,7 +36,7 @@ impl Greeter for MyGreeter {
     // This method has one path parameter (`user_id`) and two body parameters.
     // The `body(...)` group lists the arguments to be bundled into the JSON body.
     #[rest(method = POST, path = "/users/:user_id/settings", body(brightness, theme))]
-    async fn update_settings(&self, user_id: u64, brightness: u32, theme: String) -> MyResult {
+    async fn update_settings(&mut self, user_id: u64, brightness: u32, theme: String) -> MyResult {
         println!(
             "[update_settings] Received for user_id {}: brightness={}, theme='{}'",
             user_id, brightness, theme

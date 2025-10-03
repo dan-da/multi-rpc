@@ -1,6 +1,5 @@
-// multi-rpc-macros/src/protocols/rest_axum.rs
+use std::collections::HashMap;
 
-use proc_macro2::Ident;
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
@@ -8,13 +7,16 @@ use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::FnArg;
+use syn::Ident;
 use syn::ImplItem;
 use syn::ItemImpl;
 use syn::ItemTrait;
 use syn::LitStr;
 use syn::Pat;
 use syn::Result;
+use syn::ReturnType;
 use syn::Token;
+use syn::Type;
 
 use super::Protocol;
 
@@ -108,7 +110,6 @@ impl Protocol for RestAxum {
     fn transform_impl(&self, item_impl: &ItemImpl) -> TokenStream {
         let self_ty = &item_impl.self_ty;
 
-        // Collect routes and wrapper structs from all methods first.
         let mut routes = Vec::new();
         let mut wrapper_structs = Vec::new();
 
@@ -128,7 +129,7 @@ impl Protocol for RestAxum {
                     let mut handler_args = vec![];
                     let mut call_args = vec![];
 
-                    let all_fn_args: std::collections::HashMap<_, _> = method
+                    let all_fn_args: HashMap<_, _> = method
                         .sig
                         .inputs
                         .iter()
@@ -143,7 +144,6 @@ impl Protocol for RestAxum {
                         })
                         .collect();
 
-                    // Path parameters are inferred from the path string
                     let path_str = path.value();
                     let path_params: Vec<_> = path_str
                         .split('/')
@@ -156,7 +156,6 @@ impl Protocol for RestAxum {
                         call_args.push(quote! { #p_param });
                     }
 
-                    // Query Parameters
                     if !rest_attr.query_params.is_empty() {
                         let query_wrapper_ident =
                             format_ident!("{}Query", method_ident.to_string());
@@ -179,7 +178,6 @@ impl Protocol for RestAxum {
                         });
                     }
 
-                    // Body Parameters
                     if !rest_attr.body_params.is_empty() {
                         let body_wrapper_ident = format_ident!("{}Body", method_ident.to_string());
                         let mut body_wrapper_fields = vec![];
@@ -201,18 +199,45 @@ impl Protocol for RestAxum {
                         });
                     }
 
-                    // --- Handler Body Generation ---
-                    let handler_body = quote! {
-                        use axum::response::IntoResponse;
-                        let result = service.#method_ident(#(#call_args),*).await;
-                        axum::response::Json(result).into_response()
+                    // The Mutex is needed to get exclusive access to the service
+                    // and correctly call methods that take &mut self.
+                    let method_call =
+                        quote! { service.lock().await.#method_ident(#(#call_args),*).await };
+
+                    let mut is_result = false;
+                    if let ReturnType::Type(_, ty) = &method.sig.output {
+                        if let Type::Path(type_path) = &**ty {
+                            if let Some(segment) = type_path.path.segments.last() {
+                                if segment.ident == "Result" {
+                                    is_result = true;
+                                }
+                            }
+                        }
+                    }
+
+                    let handler_body = if is_result {
+                        quote! {
+                            match #method_call {
+                                Ok(result) => axum::response::Json(result).into_response(),
+                                Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+                            }
+                        }
+                    } else {
+                        quote! {
+                            let result = #method_call;
+                            axum::response::Json(result).into_response()
+                        }
                     };
+
+                    let handler_args_punctuated =
+                        Punctuated::<_, Token![,]>::from_iter(handler_args);
 
                     routes.push(quote! {
                         .route(#path, axum::routing::#http_method(|
-                            axum::extract::State(service): axum::extract::State<std::sync::Arc<#self_ty>>,
-                            #(#handler_args),*
+                            axum::extract::State(service): axum::extract::State<std::sync::Arc<tokio::sync::Mutex<#self_ty>>>,
+                            #handler_args_punctuated
                         | async move {
+                            use axum::response::IntoResponse;
                             #handler_body
                         }))
                     });
@@ -222,20 +247,21 @@ impl Protocol for RestAxum {
 
         quote! {
             pub mod rest_axum_wrappers {
-                 use super::*;
-                 // Here we define the invisible wrapper structs, which are now in scope.
-                 #(#wrapper_structs)*
+                use super::*;
+                use serde::{Deserialize};
+                #(#wrapper_structs)*
             }
 
             pub fn rest_axum(addr: std::net::SocketAddr)
-                -> impl FnOnce(std::sync::Arc<#self_ty>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+                -> impl FnOnce(std::sync::Arc<tokio::sync::Mutex<#self_ty>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
             {
                 use self::rest_axum_wrappers::*;
+                use std::sync::Arc;
+                use tokio::sync::Mutex;
 
                 move |service| {
                     Box::pin(async move {
                         let app = axum::Router::new()
-                            // Interpolate all the collected routes here.
                             #(#routes)*
                             .with_state(service);
 

@@ -11,13 +11,11 @@ use syn::Token;
 use syn::TraitItem;
 
 use super::Protocol;
-
 pub struct Tarpc;
 
 impl Protocol for Tarpc {
     fn transform_trait(&self, item_trait: &ItemTrait) -> TokenStream {
         let tarpc_trait_ident = format_ident!("{}Tarpc", item_trait.ident);
-
         let methods = item_trait.items.iter().filter_map(|item| {
             if let TraitItem::Fn(method) = item {
                 let mut sig = method.sig.clone();
@@ -33,7 +31,10 @@ impl Protocol for Tarpc {
             pub trait #tarpc_trait_ident { #(#methods)* }
 
             #[derive(Clone)]
-            pub struct TarpcAdapter<S>(pub std::sync::Arc<S>);
+            pub struct TarpcAdapter<S>(
+                // An Arc reference to the Mutex in ServerBuilder
+                pub std::sync::Arc<tokio::sync::Mutex<S>>
+            );
         }
     }
 
@@ -63,9 +64,11 @@ impl Protocol for Tarpc {
                 let user_args_and_tys: Punctuated<_, Token![,]> = sig.inputs.iter().skip(1).cloned().collect();
                 let original_arg_names: Vec<Pat> = user_args_and_tys.iter().filter_map(|arg| if let FnArg::Typed(pt) = arg { Some((*pt.pat).clone()) } else { None }).collect();
 
+                let method_call = quote! { self.0.lock().await.#method_name(#(#original_arg_names),*).await };
+
                 Some(quote! {
                     async fn #method_name(self, _: tarpc::context::Context, #user_args_and_tys) #return_ty {
-                        self.0.#method_name(#(#original_arg_names),*).await
+                        #method_call
                     }
                 })
             } else { None }
@@ -76,10 +79,9 @@ impl Protocol for Tarpc {
                 #(#adapter_methods)*
             }
 
-            async fn run_tarpc_server<L, T>(service: std::sync::Arc<#self_ty>, mut listener: L)
+            async fn run_tarpc_server<L, T>(service: std::sync::Arc<tokio::sync::Mutex<#self_ty>>, mut listener: L)
             where
                 L: futures::Stream<Item = std::io::Result<T>> + Unpin,
-                // **THE FIX IS HERE: The `Response` type must come first for the server transport.**
                 T: tarpc::Transport<
                     tarpc::Response<#generated_mod_ident::#response_ident>,
                     tarpc::ClientMessage<#generated_mod_ident::#request_ident>
@@ -91,7 +93,6 @@ impl Protocol for Tarpc {
                 use #generated_mod_ident::#tarpc_trait_ident;
 
                 println!("📡 Tarpc server starting...");
-
                 while let Some(Ok(transport)) = listener.next().await {
                     let server = TarpcAdapter(service.clone());
                     let channel = BaseChannel::with_defaults(transport).execute(server.serve());
@@ -100,9 +101,10 @@ impl Protocol for Tarpc {
             }
 
             pub fn tarpc_tcp(addr: std::net::SocketAddr)
-                -> impl FnOnce(std::sync::Arc<#self_ty>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+                -> impl FnOnce(std::sync::Arc<tokio::sync::Mutex<#self_ty>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
             {
-                move |service| {
+                move |service|
+                {
                     Box::pin(async move {
                         let listener = tarpc::serde_transport::tcp::listen(addr, tarpc::tokio_serde::formats::Json::default).await.unwrap();
                         run_tarpc_server(service, listener).await;

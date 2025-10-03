@@ -12,6 +12,7 @@ pub mod runner;
 
 // --- Public Dependency Re-exports (For Version Safety) ---
 
+// It's common to re-export serde for convenience
 #[cfg(feature = "rest-axum")]
 pub use axum;
 #[cfg(feature = "jsonrpsee")]
@@ -23,7 +24,6 @@ pub use multi_rpc_macros::multi_rpc_impl;
 pub use multi_rpc_macros::multi_rpc_trait;
 /// An attribute to expose a trait method as a REST endpoint. Used with the `rest-axum` feature.
 pub use multi_rpc_macros::rest;
-// It's also common to re-export serde for convenience
 pub use serde;
 #[cfg(feature = "tarpc")]
 pub use tarpc;
