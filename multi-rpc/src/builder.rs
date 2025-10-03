@@ -39,7 +39,7 @@ where
     /// # Arguments
     ///
     /// * `factory` - A function that takes the shared service instance and returns a future
-    ///               representing the running server task.
+    ///   representing the running server task.
     pub fn add_protocol<F>(mut self, factory: F) -> Self
     where
         F: FnOnce(Arc<S>) -> ServerTask + Send + 'static,

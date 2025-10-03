@@ -9,11 +9,11 @@ const PROTOCOLS: &[&dyn Protocol] = &[&Tarpc, &RestAxum, &JsonRpSee];
 
 #[proc_macro_attribute]
 pub fn multi_rpc_trait(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    let mut item_trait = parse_macro_input!(input as ItemTrait);
+    let item_trait = parse_macro_input!(input as ItemTrait);
     let trait_ident = item_trait.ident.clone();
     let generated_mod_ident = format_ident!("{}_generated", trait_ident.to_string().to_lowercase());
 
-    let generated_trait_code: Vec<_> = PROTOCOLS.iter().map(|p| p.transform_trait(&mut item_trait)).collect();
+    let generated_trait_code: Vec<_> = PROTOCOLS.iter().map(|p| p.transform_trait(&item_trait)).collect();
 
     quote! {
         #item_trait
