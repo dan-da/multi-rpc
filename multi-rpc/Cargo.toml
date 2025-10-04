@@ -1,6 +1,6 @@
 [package]
 name = "multi-rpc"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Define a Rust service trait once and serve it simultaneously over multiple RPC protocols like Tarpc, REST/Axum, and JSON-RPC."
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ categories = ["network-programming", "web-programming"]
 
 [dependencies]
 # Local workspace crates do not use the workspace.dependencies table
-multi-rpc-macros = { version = "0.1.0", path = "../multi-rpc-macros", default-features = false }
+multi-rpc-macros = { version = "0.2.0", path = "../multi-rpc-macros", default-features = false }
 
 # Inherited dependencies
 futures = { workspace = true }

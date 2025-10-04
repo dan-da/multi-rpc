@@ -1071,7 +1071,7 @@ dependencies = [
 
 [[package]]
 name = "multi-rpc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "futures",
@@ -1087,7 +1087,7 @@ dependencies = [
 
 [[package]]
 name = "multi-rpc-macros"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
