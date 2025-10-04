@@ -19,6 +19,7 @@ futures = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 trait-variant = { workspace = true }
 
 # Optional Protocol Dependencies (still need to be marked optional)

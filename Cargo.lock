@@ -1078,6 +1078,7 @@ dependencies = [
  "jsonrpsee",
  "multi-rpc-macros",
  "serde",
+ "serde_json",
  "tarpc",
  "thiserror 1.0.69",
  "tokio",

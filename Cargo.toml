@@ -24,7 +24,7 @@ tokio = { version = "1.47.1", features = ["full"] }
 futures = "0.3.31"
 thiserror = "1.0.69"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
+serde_json = {version = "1.0.145", features = ["arbitrary_precision"] }
 
 # Macro Helper Crates
 syn = { version = "2.0.106", features = ["full"] }
