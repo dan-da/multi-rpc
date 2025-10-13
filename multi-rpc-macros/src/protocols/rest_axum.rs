@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use proc_macro2::TokenStream;
 use quote::format_ident;
@@ -127,8 +127,8 @@ impl Protocol for RestAxum {
                     let method_ident = &method.sig.ident;
 
                     let mut handler_args = vec![];
-                    let mut call_args = vec![];
 
+                    // --- Collect all argument information from the original function ---
                     let all_fn_args: HashMap<_, _> = method
                         .sig
                         .inputs
@@ -144,6 +144,22 @@ impl Protocol for RestAxum {
                         })
                         .collect();
 
+                    let ordered_fn_arg_names: Vec<_> = method
+                        .sig
+                        .inputs
+                        .iter()
+                        .skip(1)
+                        .filter_map(|arg| {
+                            if let FnArg::Typed(pt) = arg {
+                                if let Pat::Ident(pi) = &*pt.pat {
+                                    return Some(pi.ident.clone());
+                                }
+                            }
+                            None
+                        })
+                        .collect();
+
+                    // --- Parse parameter types from the #[rest] attribute ---
                     let path_str = path.value();
                     let path_params: Vec<_> = path_str
                         .split('/')
@@ -151,9 +167,21 @@ impl Protocol for RestAxum {
                         .map(|s| format_ident!("{}", &s[1..]))
                         .collect();
 
+                    let path_params_set: HashSet<_> = path_params.iter().cloned().collect();
+                    let query_params_set: HashSet<_> = rest_attr
+                        .query_params
+                        .iter()
+                        .map(|p| p.private_name.clone())
+                        .collect();
+                    let body_params_set: HashSet<_> = rest_attr
+                        .body_params
+                        .iter()
+                        .map(|p| p.private_name.clone())
+                        .collect();
+
+                    // --- Build Axum handler signature and wrapper structs (order doesn't matter here) ---
                     for p_param in &path_params {
                         handler_args.push(quote! { axum::extract::Path(#p_param) });
-                        call_args.push(quote! { #p_param });
                     }
 
                     if !rest_attr.query_params.is_empty() {
@@ -167,7 +195,6 @@ impl Protocol for RestAxum {
                             query_wrapper_fields.push(
                                 quote! { #[serde(rename = #pub_name_str)] pub #priv_name: #arg_ty },
                             );
-                            call_args.push(quote! { query_params.#priv_name });
                         }
                         handler_args.push(quote! { axum::extract::Query(query_params): axum::extract::Query<#query_wrapper_ident> });
                         wrapper_structs.push(quote! {
@@ -188,7 +215,6 @@ impl Protocol for RestAxum {
                             body_wrapper_fields.push(
                                 quote! { #[serde(rename = #pub_name_str)] pub #priv_name: #arg_ty },
                             );
-                            call_args.push(quote! { body_params.#priv_name });
                         }
                         handler_args.push(quote! { axum::extract::Json(body_params): axum::extract::Json<#body_wrapper_ident> });
                         wrapper_structs.push(quote! {
@@ -199,11 +225,22 @@ impl Protocol for RestAxum {
                         });
                     }
 
-                    // The Mutex is needed to get exclusive access to the service
-                    // and correctly call methods that take &mut self.
+                    // --- Build the argument list for the final method call (order MATTERS here) ---
+                    let mut call_args = vec![];
+                    for arg_name in &ordered_fn_arg_names {
+                        if path_params_set.contains(arg_name) {
+                            call_args.push(quote! { #arg_name });
+                        } else if query_params_set.contains(arg_name) {
+                            call_args.push(quote! { query_params.#arg_name });
+                        } else if body_params_set.contains(arg_name) {
+                            call_args.push(quote! { body_params.#arg_name });
+                        }
+                    }
+
                     let method_call =
                         quote! { service.lock().await.#method_ident(#(#call_args),*).await };
 
+                    // --- Determine how to handle the return value ---
                     let mut is_result = false;
                     if let ReturnType::Type(_, ty) = &method.sig.output {
                         if let Type::Path(type_path) = &**ty {
@@ -269,3 +306,4 @@ impl Protocol for RestAxum {
         }
     }
 }
+
