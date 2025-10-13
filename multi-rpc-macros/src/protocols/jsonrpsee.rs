@@ -65,8 +65,6 @@ impl Protocol for JsonRpSee {
             .last()
             .unwrap()
             .ident;
-        let generated_mod_ident =
-            format_ident!("{}_generated", trait_ident.to_string().to_lowercase());
         let rpc_trait_ident = format_ident!("{}RpcServer", trait_ident);
         let method_impls = item_impl.items.iter().filter_map(|item| {
             if let ImplItem::Fn(method) = item {
@@ -160,7 +158,7 @@ impl Protocol for JsonRpSee {
 
         quote! {
             #[jsonrpsee::core::async_trait]
-            impl #generated_mod_ident::#rpc_trait_ident for #generated_mod_ident::RpcAdapter<#self_ty>
+            impl #rpc_trait_ident for RpcAdapter<#self_ty>
             {
                 #(#method_impls)*
             }
@@ -168,10 +166,9 @@ impl Protocol for JsonRpSee {
             pub fn jsonrpsee(addr: std::net::SocketAddr)
                 -> impl FnOnce(std::sync::Arc<tokio::sync::Mutex<#self_ty>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
             {
-                use #generated_mod_ident::#rpc_trait_ident;
                 move |service| {
                     Box::pin(async move {
-                        let module = #generated_mod_ident::RpcAdapter(service).into_rpc();
+                        let module = RpcAdapter(service).into_rpc();
                         println!("🌐 JSON-RPC (jsonrpsee) server listening on http://{}", addr);
                         let server = jsonrpsee::server::Server::builder().build(addr).await.unwrap();
                         server.start(module).stopped().await;

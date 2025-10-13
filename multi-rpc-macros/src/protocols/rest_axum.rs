@@ -246,16 +246,11 @@ impl Protocol for RestAxum {
         }
 
         quote! {
-            pub mod rest_axum_wrappers {
-                use super::*;
-                use serde::{Deserialize};
-                #(#wrapper_structs)*
-            }
+            #(#wrapper_structs)*
 
             pub fn rest_axum(addr: std::net::SocketAddr)
                 -> impl FnOnce(std::sync::Arc<tokio::sync::Mutex<#self_ty>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
             {
-                use self::rest_axum_wrappers::*;
                 use std::sync::Arc;
                 use tokio::sync::Mutex;
 

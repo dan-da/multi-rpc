@@ -15,7 +15,11 @@ pub struct Tarpc;
 
 impl Protocol for Tarpc {
     fn transform_trait(&self, item_trait: &ItemTrait) -> TokenStream {
-        let tarpc_trait_ident = format_ident!("{}Tarpc", item_trait.ident);
+        let original_trait_ident = &item_trait.ident;
+        let tarpc_trait_ident = format_ident!("{}Tarpc", original_trait_ident);
+        let generated_client_ident = format_ident!("{}Client", tarpc_trait_ident);
+        let desired_client_ident = format_ident!("{}Client", original_trait_ident);
+
         let methods = item_trait.items.iter().filter_map(|item| {
             if let TraitItem::Fn(method) = item {
                 let mut sig = method.sig.clone();
@@ -29,6 +33,10 @@ impl Protocol for Tarpc {
         quote! {
             #[tarpc::service]
             pub trait #tarpc_trait_ident { #(#methods)* }
+
+            // Alias the generated client `RPCTarpcClient` to the more ergonomic `RPCClient`.
+            // This makes the change non-breaking for existing clients.
+            pub use self::#generated_client_ident as #desired_client_ident;
 
             #[derive(Clone)]
             pub struct TarpcAdapter<S>(
@@ -49,8 +57,6 @@ impl Protocol for Tarpc {
             .last()
             .unwrap()
             .ident;
-        let generated_mod_ident =
-            format_ident!("{}_generated", trait_ident.to_string().to_lowercase());
         let tarpc_trait_ident = format_ident!("{}Tarpc", trait_ident);
 
         let request_ident = format_ident!("{}Request", tarpc_trait_ident);
@@ -75,7 +81,7 @@ impl Protocol for Tarpc {
         });
 
         quote! {
-            impl #generated_mod_ident::#tarpc_trait_ident for #generated_mod_ident::TarpcAdapter<#self_ty> {
+            impl #tarpc_trait_ident for TarpcAdapter<#self_ty> {
                 #(#adapter_methods)*
             }
 
@@ -83,14 +89,12 @@ impl Protocol for Tarpc {
             where
                 L: futures::Stream<Item = std::io::Result<T>> + Unpin,
                 T: tarpc::Transport<
-                    tarpc::Response<#generated_mod_ident::#response_ident>,
-                    tarpc::ClientMessage<#generated_mod_ident::#request_ident>
+                    tarpc::Response<#response_ident>,
+                    tarpc::ClientMessage<#request_ident>
                 > + Send + 'static,
             {
                 use futures::StreamExt;
                 use tarpc::server::{BaseChannel, Channel};
-                use #generated_mod_ident::TarpcAdapter;
-                use #generated_mod_ident::#tarpc_trait_ident;
 
                 println!("📡 Tarpc server starting...");
                 while let Some(Ok(transport)) = listener.next().await {
