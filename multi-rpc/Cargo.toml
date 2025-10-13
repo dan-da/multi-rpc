@@ -1,6 +1,6 @@
 [package]
 name = "multi-rpc"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Define a Rust service trait once and serve it simultaneously over multiple RPC protocols like Tarpc, REST/Axum, and JSON-RPC."
 license = "Apache-2.0"
