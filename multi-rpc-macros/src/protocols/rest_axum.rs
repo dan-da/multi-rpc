@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 use proc_macro2::TokenStream;
 use quote::format_ident;
@@ -53,6 +54,7 @@ struct RestAttribute {
     path: LitStr,
     query_params: Punctuated<ParamMapping, Token![,]>,
     body_params: Punctuated<ParamMapping, Token![,]>,
+    form_params: Punctuated<ParamMapping, Token![,]>,
 }
 
 impl Parse for RestAttribute {
@@ -61,6 +63,7 @@ impl Parse for RestAttribute {
         let mut path = None;
         let mut query_params = Punctuated::new();
         let mut body_params = Punctuated::new();
+        let mut form_params = Punctuated::new();
 
         let top_level_vars = Punctuated::<syn::Meta, Token![,]>::parse_terminated(input)?;
 
@@ -87,6 +90,10 @@ impl Parse for RestAttribute {
                 if let syn::Meta::List(list) = meta {
                     body_params = list.parse_args_with(Punctuated::parse_terminated)?;
                 }
+            } else if meta.path().is_ident("form") {
+                if let syn::Meta::List(list) = meta {
+                    form_params = list.parse_args_with(Punctuated::parse_terminated)?;
+                }
             }
         }
 
@@ -96,6 +103,7 @@ impl Parse for RestAttribute {
             path: path.ok_or_else(|| syn::Error::new(input.span(), "Missing `path` argument"))?,
             query_params,
             body_params,
+            form_params,
         })
     }
 }
@@ -128,7 +136,6 @@ impl Protocol for RestAxum {
 
                     let mut handler_args = vec![];
 
-                    // --- Collect all argument information from the original function ---
                     let all_fn_args: HashMap<_, _> = method
                         .sig
                         .inputs
@@ -159,12 +166,11 @@ impl Protocol for RestAxum {
                         })
                         .collect();
 
-                    // --- Parse parameter types from the #[rest] attribute ---
                     let path_str = path.value();
                     let path_params: Vec<_> = path_str
                         .split('/')
-                        .filter(|s| s.starts_with(':'))
-                        .map(|s| format_ident!("{}", &s[1..]))
+                        .filter_map(|s| s.strip_prefix('{').and_then(|s| s.strip_suffix('}')))
+                        .map(|p| format_ident!("{}", p))
                         .collect();
 
                     let path_params_set: HashSet<_> = path_params.iter().cloned().collect();
@@ -178,10 +184,42 @@ impl Protocol for RestAxum {
                         .iter()
                         .map(|p| p.private_name.clone())
                         .collect();
+                    let form_params_set: HashSet<_> = rest_attr
+                        .form_params
+                        .iter()
+                        .map(|p| p.private_name.clone())
+                        .collect();
 
-                    // --- Build Axum handler signature and wrapper structs (order doesn't matter here) ---
-                    for p_param in &path_params {
-                        handler_args.push(quote! { axum::extract::Path(#p_param) });
+                    if !path_params.is_empty() {
+                        let method_name_str = method_ident.to_string();
+                        let mut pascal_case_name = String::new();
+                        let mut capitalize = true;
+                        for c in method_name_str.chars() {
+                            if c == '_' {
+                                capitalize = true;
+                            } else if capitalize {
+                                pascal_case_name.push(c.to_ascii_uppercase());
+                                capitalize = false;
+                            } else {
+                                pascal_case_name.push(c);
+                            }
+                        }
+                        let path_wrapper_ident = format_ident!("{}PathParams", pascal_case_name);
+
+                        let mut path_fields = vec![];
+                        for p_param in &path_params {
+                            let param_ty = all_fn_args.get(p_param).unwrap();
+                            path_fields.push(quote! { pub #p_param: #param_ty });
+                        }
+
+                        wrapper_structs.push(quote! {
+                            #[derive(serde::Deserialize)]
+                            pub struct #path_wrapper_ident {
+                                #(#path_fields),*
+                            }
+                        });
+
+                        handler_args.push(quote! { axum::extract::Path(path_params): axum::extract::Path<#path_wrapper_ident> });
                     }
 
                     if !rest_attr.query_params.is_empty() {
@@ -225,22 +263,42 @@ impl Protocol for RestAxum {
                         });
                     }
 
-                    // --- Build the argument list for the final method call (order MATTERS here) ---
+                    if !rest_attr.form_params.is_empty() {
+                        let form_wrapper_ident = format_ident!("{}Form", method_ident.to_string());
+                        let mut form_wrapper_fields = vec![];
+                        for f_param in &rest_attr.form_params {
+                            let pub_name_str = f_param.public_name.to_string();
+                            let priv_name = &f_param.private_name;
+                            let arg_ty = all_fn_args.get(priv_name).unwrap();
+                            form_wrapper_fields.push(
+                                quote! { #[serde(rename = #pub_name_str)] pub #priv_name: #arg_ty },
+                            );
+                        }
+                        handler_args.push(quote! { axum::extract::Form(form_params): axum::extract::Form<#form_wrapper_ident> });
+                        wrapper_structs.push(quote! {
+                            #[derive(serde::Deserialize)]
+                            pub struct #form_wrapper_ident {
+                                #(#form_wrapper_fields),*
+                            }
+                        });
+                    }
+
                     let mut call_args = vec![];
                     for arg_name in &ordered_fn_arg_names {
                         if path_params_set.contains(arg_name) {
-                            call_args.push(quote! { #arg_name });
+                            call_args.push(quote! { path_params.#arg_name });
                         } else if query_params_set.contains(arg_name) {
                             call_args.push(quote! { query_params.#arg_name });
                         } else if body_params_set.contains(arg_name) {
                             call_args.push(quote! { body_params.#arg_name });
+                        } else if form_params_set.contains(arg_name) {
+                            call_args.push(quote! { form_params.#arg_name });
                         }
                     }
 
                     let method_call =
                         quote! { service.lock().await.#method_ident(#(#call_args),*).await };
 
-                    // --- Determine how to handle the return value ---
                     let mut is_result = false;
                     if let ReturnType::Type(_, ty) = &method.sig.output {
                         if let Type::Path(type_path) = &**ty {
@@ -269,10 +327,16 @@ impl Protocol for RestAxum {
                     let handler_args_punctuated =
                         Punctuated::<_, Token![,]>::from_iter(handler_args);
 
+                    let handler_args_with_comma = if handler_args_punctuated.is_empty() {
+                        quote! {}
+                    } else {
+                        quote! { , #handler_args_punctuated }
+                    };
+
                     routes.push(quote! {
                         .route(#path, axum::routing::#http_method(|
-                            axum::extract::State(service): axum::extract::State<std::sync::Arc<tokio::sync::Mutex<#self_ty>>>,
-                            #handler_args_punctuated
+                            axum::extract::State(service): axum::extract::State<std::sync::Arc<tokio::sync::Mutex<#self_ty>>>
+                            #handler_args_with_comma
                         | async move {
                             use axum::response::IntoResponse;
                             #handler_body
@@ -283,11 +347,16 @@ impl Protocol for RestAxum {
         }
 
         quote! {
-            #(#wrapper_structs)*
+            pub mod rest_axum_wrappers {
+                use super::*;
+                use serde::{Deserialize};
+                #(#wrapper_structs)*
+            }
 
             pub fn rest_axum(addr: std::net::SocketAddr)
                 -> impl FnOnce(std::sync::Arc<tokio::sync::Mutex<#self_ty>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
             {
+                use self::rest_axum_wrappers::*;
                 use std::sync::Arc;
                 use tokio::sync::Mutex;
 
@@ -306,4 +375,3 @@ impl Protocol for RestAxum {
         }
     }
 }
-

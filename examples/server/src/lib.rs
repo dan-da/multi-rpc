@@ -22,7 +22,7 @@ pub struct MyGreeter(pub String);
 #[multi_rpc_impl]
 impl Greeter for MyGreeter {
     // This method only has a path parameter, which is inferred from the path string.
-    #[rest(method = GET, path = "/greet/:name")]
+    #[rest(method = GET, path = "/greet/{name}")]
     async fn greet(&self, name: String) -> MyResult {
         println!("[greet] Received call for name: {}", name);
         if name.is_empty() {
@@ -35,7 +35,7 @@ impl Greeter for MyGreeter {
 
     // This method has one path parameter (`user_id`) and two body parameters.
     // The `body(...)` group lists the arguments to be bundled into the JSON body.
-    #[rest(method = POST, path = "/users/:user_id/settings", body(brightness, theme))]
+    #[rest(method = POST, path = "/users/{user_id}/settings", body(brightness, theme))]
     async fn update_settings(&mut self, user_id: u64, brightness: u32, theme: String) -> MyResult {
         println!(
             "[update_settings] Received for user_id {}: brightness={}, theme='{}'",

@@ -16,7 +16,7 @@ default-members = ["examples/server"]
 [workspace.dependencies]
 # Protocol Crates
 tarpc = { version = "0.37.0", features = ["full"] }
-axum = "0.7.9"
+axum = "0.8.6"
 jsonrpsee = { version = "0.26.0", features = ["server", "macros"] }
 
 # Async & Core Crates

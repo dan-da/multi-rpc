@@ -57,12 +57,12 @@ pub struct MyGreeter(pub String);
 
 #[multi_rpc_impl]
 impl Greeter for MyGreeter {
-    #[rest(method = GET, path = "/greet/:name")]
+    #[rest(method = GET, path = "/greet/{name}")]
     async fn greet(&self, name: String) -> MyResult {
         MyResult(Ok(format!("Hello, {}! My name is {}.", name, self.0)))
     }
 
-    #[rest(method = POST, path = "/users/:user_id/settings", body(brightness, theme))]
+    #[rest(method = POST, path = "/users/{user_id}/settings", body(brightness, theme))]
     async fn update_settings(&self, user_id: u64, brightness: u32, theme: String) -> MyResult {
         let response = format!(
             "Settings updated for user {}: Theme is now '{}' at {}% brightness.",
@@ -79,12 +79,15 @@ The `#[rest]` attribute maps your pure Rust function to an HTTP endpoint, giving
 
 * **`method = GET`**: (Required) The HTTP method (`GET`, `POST`, `PUT`, etc.).
 * **`path = "/..."`**: (Required) The URL path.
-    * Path parameters like `/:user_id` are automatically mapped to function arguments with the same name (e.g., `user_id: u64`).
+    * Path parameters like `/{user_id}` are automatically mapped to function arguments with the same name (e.g., `user_id: u64`).
 * **`query(...)`**: (Optional) A group that lists function arguments to be extracted from the URL's query string.
     * `query(limit)` is shorthand for `query(limit = limit)`.
     * `query(q = search_query)` maps the public query key `q` to the Rust variable `search_query`.
 * **`body(...)`**: (Optional) A group that lists function arguments to be bundled into a single JSON object for the request body.
     * `body(brightness, theme)` tells the macro to expect a JSON body like `{"brightness": 85, "theme": "dark"}`.
+* **`form(...)`**: (Optional) A group that lists function arguments to be deserialized from a URL-encoded form submission (Content-Type: application/x-www-form-urlencoded).
+    * `form(username, password)` expects a form body like `username=alice&password=secret`
+
 
 ### 2. Run the Servers
 
